@@ -1,0 +1,8 @@
+[project]
+name = "orlab"
+version = "0.1.0"
+dependencies = ["numpy", "pyomo"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
