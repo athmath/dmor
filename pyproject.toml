@@ -1,5 +1,5 @@
 [project]
-name = "orlab"
+name = "dmor"
 version = "0.1.0"
 dependencies = ["numpy", "pyomo"]
 
@@ -8,4 +8,4 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["orlab"]
+packages = ["dmor"]

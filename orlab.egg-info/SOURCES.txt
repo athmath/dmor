@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 orlab/__init__.py
+orlab/model.py
 orlab/solver.py
 orlab.egg-info/PKG-INFO
 orlab.egg-info/SOURCES.txt
