@@ -1,7 +1,0 @@
--e git+https://github.com/athmath/dmor.git#egg=dmor
-numpy
-pandas
-matplotlib
-pyomo
-jupyterlab
-ipykernel
