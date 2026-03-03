@@ -8,4 +8,4 @@ dmor.egg-info/SOURCES.txt
 dmor.egg-info/dependency_links.txt
 dmor.egg-info/requires.txt
 dmor.egg-info/top_level.txt
-tests/testlp.py
+tests/test_basic_lp.py

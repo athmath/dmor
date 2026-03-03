@@ -1,3 +1,5 @@
+from xml import dom
+
 import pyomo.environ as pyo
 
 
@@ -47,6 +49,7 @@ class Model:
     # ======================================================
 
     def add_variable(self, name, index=None, lb=0, domain="nonneg"):
+
         if domain == "nonneg":
             dom = pyo.NonNegativeReals
         elif domain == "real":
@@ -59,17 +62,18 @@ class Model:
             raise ValueError("Unknown domain")
 
         if index is None:
-            v = pyo.Var(domain=dom)
             if lb is not None:
-                v.setlb(lb)
+                v = pyo.Var(domain=dom, bounds=(lb, None))
+            else:
+                v = pyo.Var(domain=dom)
         else:
             if isinstance(index, str):
                 index = (index,)
             sets = tuple(self._sets[i] for i in index)
-            v = pyo.Var(*sets, domain=dom)
             if lb is not None:
-                for idx in v:
-                    v[idx].setlb(lb)
+                v = pyo.Var(*sets, domain=dom, bounds=(lb, None))
+            else:
+                v = pyo.Var(*sets, domain=dom)
 
         setattr(self._model, name, v)
         self._vars[name] = v
