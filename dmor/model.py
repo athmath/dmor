@@ -117,9 +117,34 @@ class Model:
     # ======================================================
 
     def solve(self, solver="highs", tee=False):
+
+    # attach suffix for dual values
+    if not hasattr(self._model, "dual"):
         self._model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
-        opt = pyo.SolverFactory(solver)
-        opt.solve(self._model, tee=tee)
+
+    opt = pyo.SolverFactory(solver)
+
+    if not opt.available():
+        raise RuntimeError(
+            f"Solver '{solver}' is not available. "
+            "Check that highspy is installed."
+        )
+
+    results = opt.solve(self._model, tee=tee)
+
+    # check solver status
+    if results.solver.status != pyo.SolverStatus.ok:
+        raise RuntimeError(f"Solver status: {results.solver.status}")
+
+    if results.solver.termination_condition != pyo.TerminationCondition.optimal:
+        raise RuntimeError(
+            f"Optimization failed: {results.solver.termination_condition}"
+        )
+
+    if tee:
+        print("\nSolver termination:", results.solver.termination_condition)
+    
+    return results
 
     # ======================================================
     # DISPLAY
@@ -155,6 +180,25 @@ class Model:
             else:
                 dual = self._model.dual.get(c, None)
                 print(f"{cname} = {dual}")
+
+    # ======================================================
+    # SLACKS
+    # ======================================================
+
+    def slacks(self, tol=1e-6):
+        print("\nConstraint Slacks")
+        print("-" * 30)
+
+        for cname, c in self._constraints.items():
+            if c.is_indexed():
+                for idx in c:
+                    slack = c[idx].slack()
+                    status = "binding" if abs(slack) < tol else ""
+                    print(f"{cname}[{idx}] = {slack:.4f} {status}")
+            else:
+                slack = c.slack()
+                status = "binding" if abs(slack) < tol else ""
+                print(f"{cname} = {slack:.4f} {status}")    
 
     # ======================================================
     # ATTRIBUTE ACCESS FOR RULES
