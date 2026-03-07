@@ -1,5 +1,3 @@
-from xml import dom
-
 import pyomo.environ as pyo
 
 
@@ -11,6 +9,10 @@ class Model:
     Pyomo is completely hidden internally.
     """
 
+    # ======================================================
+    # INITIALIZATION
+    # ======================================================
+
     def __init__(self):
         self._model = pyo.ConcreteModel()
         self._sets = {}
@@ -20,19 +22,27 @@ class Model:
         self._objective_defined = False
 
     # ======================================================
+    # INTERNAL HELPER
+    # ======================================================
+
+    def _register_component(self, name, component, store):
+        setattr(self._model, name, component)
+        store[name] = component
+
+    # ======================================================
     # SETS
     # ======================================================
 
     def add_set(self, name, elements):
         s = pyo.Set(initialize=list(elements))
-        setattr(self._model, name, s)
-        self._sets[name] = s
+        self._register_component(name, s, self._sets)
 
     # ======================================================
     # PARAMETERS
     # ======================================================
 
     def add_parameter(self, name, values, index=None):
+
         if index is None:
             p = pyo.Param(initialize=values)
         else:
@@ -41,8 +51,7 @@ class Model:
             sets = tuple(self._sets[i] for i in index)
             p = pyo.Param(*sets, initialize=values)
 
-        setattr(self._model, name, p)
-        self._params[name] = p
+        self._register_component(name, p, self._params)
 
     # ======================================================
     # VARIABLES
@@ -62,21 +71,25 @@ class Model:
             raise ValueError("Unknown domain")
 
         if index is None:
+
             if lb is not None:
                 v = pyo.Var(domain=dom, bounds=(lb, None))
             else:
                 v = pyo.Var(domain=dom)
+
         else:
+
             if isinstance(index, str):
                 index = (index,)
+
             sets = tuple(self._sets[i] for i in index)
+
             if lb is not None:
                 v = pyo.Var(*sets, domain=dom, bounds=(lb, None))
             else:
                 v = pyo.Var(*sets, domain=dom)
 
-        setattr(self._model, name, v)
-        self._vars[name] = v
+        self._register_component(name, v, self._vars)
 
     # ======================================================
     # CONSTRAINTS
@@ -84,27 +97,33 @@ class Model:
 
     def add_constraint(self, name, rule, index=None):
 
-    if not callable(rule):
-        if index is not None:
-            raise ValueError(
-                "Indexed constraints must be defined using a rule function."
-            )
+        # allow algebraic expressions for scalar constraints
+        if not callable(rule):
 
-        expr = rule
+            if index is not None:
+                raise ValueError(
+                    "Indexed constraints must be defined using a rule function."
+                )
 
-        def rule(m):
-            return expr
+            expr = rule
 
-    if index is None:
-        c = pyo.Constraint(rule=rule)
-    else:
-        if isinstance(index, str):
-            index = (index,)
-        sets = tuple(self._sets[i] for i in index)
-        c = pyo.Constraint(*sets, rule=rule)
+            def rule(m):
+                return expr
 
-    setattr(self._model, name, c)
-    self._constraints[name] = c
+        if index is None:
+
+            c = pyo.Constraint(rule=rule)
+
+        else:
+
+            if isinstance(index, str):
+                index = (index,)
+
+            sets = tuple(self._sets[i] for i in index)
+
+            c = pyo.Constraint(*sets, rule=rule)
+
+        self._register_component(name, c, self._constraints)
 
     # ======================================================
     # OBJECTIVE
@@ -124,20 +143,43 @@ class Model:
 
         # allow algebraic expressions
         if not callable(rule):
+
             expr = rule
 
             def rule(m):
                 return expr
 
         self._model.obj = pyo.Objective(rule=rule, sense=s)
+
         self._objective_defined = True
 
+    # ======================================================
+    # STATISTICS
+    # ======================================================
+
+    def _model_stats(self):
+
+        nvars = sum(len(v) if v.is_indexed() else 1 for v in self._vars.values())
+
+        ncons = sum(len(c) if c.is_indexed() else 1 for c in self._constraints.values())
+
+        print("\nModel statistics")
+        print("-" * 30)
+        print("Sets:", len(self._sets))
+        print("Parameters:", len(self._params))
+        print("Variables:", nvars)
+        print("Constraints:", ncons)
+
+    
     # ======================================================
     # SOLVE
     # ======================================================
 
     def solve(self, solver="highs", tee=False):
 
+        if tee: 
+            self._model_stats()
+        
         if not hasattr(self._model, "dual"):
             self._model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
 
@@ -160,6 +202,7 @@ class Model:
 
             if condition == pyo.TerminationCondition.infeasible:
                 print("Model appears to be infeasible.")
+
             elif condition == pyo.TerminationCondition.unbounded:
                 print("Model appears to be unbounded.")
 
@@ -175,40 +218,47 @@ class Model:
     # ======================================================
 
     def display(self):
-    print("\nOptimal Solution")
-    print("-" * 30)
 
-    for name, var in self._vars.items():
+        print("\nOptimal Solution")
+        print("-" * 30)
 
-        if var.is_indexed():
+        for name, var in self._vars.items():
 
-            print(f"\n{name}")
+            if var.is_indexed():
 
-            for idx in var:
-                val = pyo.value(var[idx])
-                print(f"  {idx}: {val:.4f}")
+                print(f"\n{name}")
 
-        else:
-            val = pyo.value(var)
-            print(f"{name} = {val:.4f}")
+                for idx in sorted(var):
+                    val = pyo.value(var[idx])
+                    print(f"  {idx}: {val:.4f}")
 
-    print("\n" + "-" * 30)
-    print("Objective =", pyo.value(self._model.obj))
-    
+            else:
+
+                val = pyo.value(var)
+                print(f"{name} = {val:.4f}")
+
+        print("\n" + "-" * 30)
+        print("Objective =", pyo.value(self._model.obj))
+
     # ======================================================
     # SHADOW PRICES
     # ======================================================
 
     def shadow_prices(self):
+
         print("\nShadow Prices")
         print("-" * 30)
 
         for cname, c in self._constraints.items():
+
             if c.is_indexed():
+
                 for idx in c:
                     dual = self._model.dual.get(c[idx], None)
                     print(f"{cname}[{idx}] = {dual}")
+
             else:
+
                 dual = self._model.dual.get(c, None)
                 print(f"{cname} = {dual}")
 
@@ -217,23 +267,32 @@ class Model:
     # ======================================================
 
     def slacks(self, tol=1e-6):
+
         print("\nConstraint Slacks")
         print("-" * 30)
 
         for cname, c in self._constraints.items():
-            if c.is_indexed():
-                for idx in c:
-                    slack = c[idx].slack()
-                    status = "binding" if abs(slack) < tol else ""
-                    print(f"{cname}[{idx}] = {slack:.4f} {status}")
-            else:
-                slack = c.slack()
-                status = "binding" if abs(slack) < tol else ""
-                print(f"{cname} = {slack:.4f} {status}")    
 
+            if c.is_indexed():
+
+                for idx in c:
+
+                    slack = c[idx].slack()
+
+                    status = "binding" if abs(slack) < tol else ""
+
+                    print(f"{cname}[{idx}] = {slack:.4f} {status}")
+
+            else:
+
+                slack = c.slack()
+
+                status = "binding" if abs(slack) < tol else ""
+
+                print(f"{cname} = {slack:.4f} {status}")
 
     # ======================================================
-    # GENERALIZE SUM EXPRESSION
+    # SUM HELPER
     # ======================================================
 
     def sum(self, expr):
@@ -249,4 +308,5 @@ class Model:
         """
         if hasattr(self._model, name):
             return getattr(self._model, name)
+
         raise AttributeError(name)
