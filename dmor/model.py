@@ -83,22 +83,35 @@ class Model:
     # ======================================================
 
     def add_constraint(self, name, rule, index=None):
-        if index is None:
-            c = pyo.Constraint(rule=rule)
-        else:
-            if isinstance(index, str):
-                index = (index,)
-            sets = tuple(self._sets[i] for i in index)
-            c = pyo.Constraint(*sets, rule=rule)
 
-        setattr(self._model, name, c)
-        self._constraints[name] = c
+    if not callable(rule):
+        if index is not None:
+            raise ValueError(
+                "Indexed constraints must be defined using a rule function."
+            )
+
+        expr = rule
+
+        def rule(m):
+            return expr
+
+    if index is None:
+        c = pyo.Constraint(rule=rule)
+    else:
+        if isinstance(index, str):
+            index = (index,)
+        sets = tuple(self._sets[i] for i in index)
+        c = pyo.Constraint(*sets, rule=rule)
+
+    setattr(self._model, name, c)
+    self._constraints[name] = c
 
     # ======================================================
     # OBJECTIVE
     # ======================================================
 
     def set_objective(self, rule, sense="min"):
+
         if self._objective_defined:
             raise ValueError("Objective already defined")
 
@@ -109,6 +122,13 @@ class Model:
         else:
             raise ValueError("sense must be 'min' or 'max'")
 
+        # allow algebraic expressions
+        if not callable(rule):
+            expr = rule
+
+            def rule(m):
+                return expr
+
         self._model.obj = pyo.Objective(rule=rule, sense=s)
         self._objective_defined = True
 
@@ -118,52 +138,63 @@ class Model:
 
     def solve(self, solver="highs", tee=False):
 
-    # attach suffix for dual values
-    if not hasattr(self._model, "dual"):
-        self._model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
+        if not hasattr(self._model, "dual"):
+            self._model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
 
-    opt = pyo.SolverFactory(solver)
+        opt = pyo.SolverFactory(solver)
 
-    if not opt.available():
-        raise RuntimeError(
-            f"Solver '{solver}' is not available. "
-            "Check that highspy is installed."
-        )
+        if not opt.available():
+            raise RuntimeError(
+                f"Solver '{solver}' is not available. Check that highspy is installed."
+            )
 
-    results = opt.solve(self._model, tee=tee)
+        results = opt.solve(self._model, tee=tee)
 
-    # check solver status
-    if results.solver.status != pyo.SolverStatus.ok:
-        raise RuntimeError(f"Solver status: {results.solver.status}")
+        status = results.solver.status
+        condition = results.solver.termination_condition
 
-    if results.solver.termination_condition != pyo.TerminationCondition.optimal:
-        raise RuntimeError(
-            f"Optimization failed: {results.solver.termination_condition}"
-        )
+        if status != pyo.SolverStatus.ok or condition != pyo.TerminationCondition.optimal:
 
-    if tee:
-        print("\nSolver termination:", results.solver.termination_condition)
-    
-    return results
+            print("\nSolver status:", status)
+            print("Termination condition:", condition)
+
+            if condition == pyo.TerminationCondition.infeasible:
+                print("Model appears to be infeasible.")
+            elif condition == pyo.TerminationCondition.unbounded:
+                print("Model appears to be unbounded.")
+
+            raise RuntimeError("Optimization failed.")
+
+        if tee:
+            print("\nSolver termination:", condition)
+
+        return results
 
     # ======================================================
     # DISPLAY
     # ======================================================
 
     def display(self):
-        print("\nOptimal Solution")
-        print("-" * 30)
+    print("\nOptimal Solution")
+    print("-" * 30)
 
-        for name, var in self._vars.items():
-            if var.is_indexed():
-                for idx in var:
-                    print(f"{name}[{idx}] = {pyo.value(var[idx]):.4f}")
-            else:
-                print(f"{name} = {pyo.value(var):.4f}")
+    for name, var in self._vars.items():
 
-        print("-" * 30)
-        print("Objective =", pyo.value(self._model.obj))
+        if var.is_indexed():
 
+            print(f"\n{name}")
+
+            for idx in var:
+                val = pyo.value(var[idx])
+                print(f"  {idx}: {val:.4f}")
+
+        else:
+            val = pyo.value(var)
+            print(f"{name} = {val:.4f}")
+
+    print("\n" + "-" * 30)
+    print("Objective =", pyo.value(self._model.obj))
+    
     # ======================================================
     # SHADOW PRICES
     # ======================================================
@@ -199,6 +230,14 @@ class Model:
                 slack = c.slack()
                 status = "binding" if abs(slack) < tol else ""
                 print(f"{cname} = {slack:.4f} {status}")    
+
+
+    # ======================================================
+    # GENERALIZE SUM EXPRESSION
+    # ======================================================
+
+    def sum(self, expr):
+        return pyo.quicksum(expr)
 
     # ======================================================
     # ATTRIBUTE ACCESS FOR RULES
