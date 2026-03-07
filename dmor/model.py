@@ -116,7 +116,7 @@ class Model:
     # SOLVE
     # ======================================================
 
-    def solve(self, solver="glpk", tee=False):
+    def solve(self, solver="highs", tee=False):
         self._model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
         opt = pyo.SolverFactory(solver)
         opt.solve(self._model, tee=tee)
