@@ -175,7 +175,7 @@ class Model:
     # SOLVE
     # ======================================================
 
-    def solve(self, solver="highs", tee=False):
+    def solve(self, solver="appsi_highs", tee=False):
 
         if tee: 
             self._model_stats()
