@@ -2,6 +2,7 @@ README.md
 pyproject.toml
 dmor/__init__.py
 dmor/model.py
+dmor/model0.py
 dmor/solver.py
 dmor.egg-info/PKG-INFO
 dmor.egg-info/SOURCES.txt
