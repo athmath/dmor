@@ -186,43 +186,43 @@ class Model:
 
             self.add_constraint(name, rule, index=row_index)
 
-    # --------------------------------------------
-    # SPARSE CASE
-    # --------------------------------------------
-    elif isinstance(A, dict):
+        # --------------------------------------------
+        # SPARSE CASE
+        # --------------------------------------------
+        elif isinstance(A, dict):
 
-        rows = sorted({i for (i, j) in A})
+            rows = sorted({i for (i, j) in A})
 
-        if row_index is None:
-            row_index = f"{name}_rows"
-            self.add_set(row_index, rows)
+            if row_index is None:
+                row_index = f"{name}_rows"
+                self.add_set(row_index, rows)
 
-        row_cols = {i: [] for i in rows}
-        for (i, j) in A:
-            row_cols[i].append(j)
+            row_cols = {i: [] for i in rows}
+            for (i, j) in A:
+                row_cols[i].append(j)
 
-        if isinstance(b, dict):
-            b_dict = b
-        else:
-            b_dict = {i: b[k] for k, i in enumerate(rows)}
-
-        def rule(model, i):
-
-            expr = sum(A[i, j] * x[j] for j in row_cols[i])
-
-            if sense == "==":
-                return expr == b_dict[i]
-            elif sense == "<=":
-                return expr <= b_dict[i]
-            elif sense == ">=":
-                return expr >= b_dict[i]
+            if isinstance(b, dict):
+                b_dict = b
             else:
-                raise ValueError("sense must be '==', '<=', '>='")
+                b_dict = {i: b[k] for k, i in enumerate(rows)}
 
-        self.add_constraint(name, rule, index=row_index)
+            def rule(model, i):
 
-    else:
-        raise TypeError("A must be dict or numpy.ndarray")
+                expr = sum(A[i, j] * x[j] for j in row_cols[i])
+
+                if sense == "==":
+                    return expr == b_dict[i]
+                elif sense == "<=":
+                    return expr <= b_dict[i]
+                elif sense == ">=":
+                    return expr >= b_dict[i]
+                else:
+                    raise ValueError("sense must be '==', '<=', '>='")
+
+            self.add_constraint(name, rule, index=row_index)
+
+        else:
+            raise TypeError("A must be dict or numpy.ndarray")
 
     # ======================================================
     # OBJECTIVE
