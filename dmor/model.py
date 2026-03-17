@@ -125,27 +125,7 @@ class Model:
 
         self._register_component(name, c, self._constraints)
 
-    def add_matrix_constraint(self, name, A, varname, sense, b, row_index=None, col_index=None):
-
-    if row_index is None:
-        row_index = range(A.shape[0])
-    if col_index is None:
-        col_index = range(A.shape[1])
-
-    x = getattr(self, varname)
-
-    def rule(m, i):
-        lhs = sum(A[i, j] * x[j] for j in col_index)
-        if sense == "<=":
-            return lhs <= b[i]
-        elif sense == ">=":
-            return lhs >= b[i]
-        elif sense == "==":
-            return lhs == b[i]
-        else:
-            raise ValueError("Unknown sense")
-
-    self.add_constraint(name, rule, index=row_index)    
+  
 
 
     # ======================================================
