@@ -152,28 +152,45 @@ class Model:
         # --------------------------------------------
         if isinstance(A, np.ndarray):
 
-            m, n = A.shape
+            m_rows, n_cols = A.shape
             b = np.array(b).flatten()
 
-            if len(b) != m:
+            if len(b) != m_rows:
                 raise ValueError("Dimension mismatch between A and b")
 
             # ----------------------------------------
-            # handle row index set
+            # GET VARIABLE INDEX SET (CRITICAL FIX)
+            # ----------------------------------------
+            var_index_set = list(x.index_set())
+
+            if len(var_index_set) != n_cols:
+                raise ValueError(
+                    "Number of columns in A must match size of variable index set"
+                )
+
+            # ----------------------------------------
+            # ROW SET
             # ----------------------------------------
             if row_index is None:
                 row_index = f"{name}_rows"
-                self.add_set(row_index, range(m))
+                self.add_set(row_index, range(m_rows))
 
-            rowset = self._sets[row_index]
+            rowset = list(self._sets[row_index])
 
+            if len(rowset) != m_rows:
+                raise ValueError("Row index set size must match number of rows in A")
+
+            # ----------------------------------------
+            # RULE
+            # ----------------------------------------
             def rule(model, i):
 
-                # map Pyomo index (1-based or user-defined)
-                # to 0-based numpy index
-                i0 = list(rowset).index(i)
+                i0 = rowset.index(i)
 
-                expr = sum(A[i0, j] * x[j] for j in range(n))
+                expr = sum(
+                    A[i0, j] * x[var_index_set[j]]
+                    for j in range(n_cols)
+                )
 
                 if sense == "==":
                     return expr == b[i0]
