@@ -131,12 +131,13 @@ class Model:
     # ======================================================
 
     def add_matrix_constraints(
-        self,
-        A,
-        varname,
-        b,
-        sense="==",
-        name="matrix_con"
+    self,
+    A,
+    varname,
+    b,
+    sense="==",
+    name="matrix_con",
+    row_index=None
     ):
 
         import numpy as np
@@ -146,68 +147,82 @@ class Model:
 
         x = self._vars[varname]
 
-        # ------------------------------
-        # DENSE CASE (np.ndarray)
-        # ------------------------------
+        # --------------------------------------------
+        # DENSE CASE
+        # --------------------------------------------
         if isinstance(A, np.ndarray):
 
             m, n = A.shape
-
             b = np.array(b).flatten()
 
             if len(b) != m:
                 raise ValueError("Dimension mismatch between A and b")
 
-            def rule(model, i):
+            # ----------------------------------------
+            # handle row index set
+            # ----------------------------------------
+            if row_index is None:
+                row_index = f"{name}_rows"
+                self.add_set(row_index, range(m))
 
-                expr = sum(A[i, j] * x[j] for j in range(n))
-
-                if sense == "==":
-                    return expr == b[i]
-                elif sense == "<=":
-                    return expr <= b[i]
-                elif sense == ">=":
-                    return expr >= b[i]
-                else:
-                    raise ValueError("sense must be '==', '<=', '>='")
-
-            self.add_constraint(name, rule, index=range(m))
-
-        # ------------------------------
-        # SPARSE CASE (dict)
-        # ------------------------------
-        elif isinstance(A, dict):
-
-            rows = sorted({i for (i, j) in A})
-
-            # adjacency list
-            row_cols = {i: [] for i in rows}
-            for (i, j) in A:
-                row_cols[i].append(j)
-
-            # normalize b
-            if isinstance(b, dict):
-                b_dict = b
-            else:
-                b_dict = {i: b[k] for k, i in enumerate(rows)}
+            rowset = self._sets[row_index]
 
             def rule(model, i):
 
-                expr = sum(A[i, j] * x[j] for j in row_cols[i])
+                # map Pyomo index (1-based or user-defined)
+                # to 0-based numpy index
+                i0 = list(rowset).index(i)
+
+                expr = sum(A[i0, j] * x[j] for j in range(n))
 
                 if sense == "==":
-                    return expr == b_dict[i]
+                    return expr == b[i0]
                 elif sense == "<=":
-                    return expr <= b_dict[i]
+                    return expr <= b[i0]
                 elif sense == ">=":
-                    return expr >= b_dict[i]
+                    return expr >= b[i0]
                 else:
                     raise ValueError("sense must be '==', '<=', '>='")
 
-            self.add_constraint(name, rule, index=rows)
+            self.add_constraint(name, rule, index=row_index)
 
+    # --------------------------------------------
+    # SPARSE CASE
+    # --------------------------------------------
+    elif isinstance(A, dict):
+
+        rows = sorted({i for (i, j) in A})
+
+        if row_index is None:
+            row_index = f"{name}_rows"
+            self.add_set(row_index, rows)
+
+        row_cols = {i: [] for i in rows}
+        for (i, j) in A:
+            row_cols[i].append(j)
+
+        if isinstance(b, dict):
+            b_dict = b
         else:
-            raise TypeError("A must be dict or numpy.ndarray")
+            b_dict = {i: b[k] for k, i in enumerate(rows)}
+
+        def rule(model, i):
+
+            expr = sum(A[i, j] * x[j] for j in row_cols[i])
+
+            if sense == "==":
+                return expr == b_dict[i]
+            elif sense == "<=":
+                return expr <= b_dict[i]
+            elif sense == ">=":
+                return expr >= b_dict[i]
+            else:
+                raise ValueError("sense must be '==', '<=', '>='")
+
+        self.add_constraint(name, rule, index=row_index)
+
+    else:
+        raise TypeError("A must be dict or numpy.ndarray")
 
     # ======================================================
     # OBJECTIVE
