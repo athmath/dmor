@@ -426,3 +426,29 @@ class Model:
             return getattr(self._model, name)
 
         raise AttributeError(name)
+
+    # ======================================================
+    # MODEL INTROSPECTION
+    # ======================================================
+
+    def constraints_list(self):
+        """
+        Return a list of all constraints as strings.
+        Each indexed constraint is expanded.
+        """
+        result = []
+
+        for c in self.model.component_objects(pyo.Constraint, active=True):
+            for idx in c:
+                expr = c[idx].expr
+                result.append(str(expr))
+
+        return result
+
+    def objective_expression(self):
+        """
+        Return the objective function as a string.
+        Assumes a single active objective.
+        """
+        obj = next(self.model.component_data_objects(pyo.Objective, active=True))
+        return str(obj.expr)
