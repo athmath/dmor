@@ -438,7 +438,7 @@ class Model:
         """
         result = []
 
-        for c in self.model.component_objects(pyo.Constraint, active=True):
+        for c in self._model.component_objects(pyo.Constraint, active=True):
             for idx in c:
                 expr = c[idx].expr
                 result.append(str(expr))
@@ -450,5 +450,5 @@ class Model:
         Return the objective function as a string.
         Assumes a single active objective.
         """
-        obj = next(self.model.component_data_objects(pyo.Objective, active=True))
+        obj = next(self._model.component_data_objects(pyo.Objective, active=True))
         return str(obj.expr)
