@@ -1,6 +1,5 @@
 [project]
 name = "dmor"
-version = "0.2.0"
 dependencies = ["numpy", "pyomo", "highspy"]
 
 [build-system]
