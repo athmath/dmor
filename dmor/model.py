@@ -452,3 +452,26 @@ class Model:
         """
         obj = next(self._model.component_data_objects(pyo.Objective, active=True))
         return str(obj.expr)
+    
+
+    # ======================================================
+    # EXTRACTING SOLUTION VALUES
+    # ======================================================
+
+
+    def get_values(self, name):
+        """
+        Return variable values as a NumPy array.
+        Assumes ordered (sortable) indices.
+        """
+        var = getattr(self._model, name)
+
+        # Scalar variable
+        if not var.is_indexed():
+            return np.array([pyo.value(var)])
+
+        # Indexed variable
+        keys = list(var.keys())
+        keys_sorted = sorted(keys)
+
+        return np.array([pyo.value(var[k]) for k in keys_sorted])
