@@ -58,7 +58,7 @@ class Model:
     # VARIABLES
     # ======================================================
 
-    def add_variable(self, name, index=None, lb=0, domain="nonneg"):
+    def add_variable(self, name, index=None, lb=None, ub=None, domain="nonneg"):
 
         if domain == "nonneg":
             dom = pyo.NonNegativeReals
