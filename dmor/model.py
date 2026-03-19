@@ -125,28 +125,121 @@ class Model:
 
         self._register_component(name, c, self._constraints)
 
-    def add_matrix_constraint(self, name, A, varname, sense, b, row_index=None, col_index=None):
+  
+    # ======================================================
+    # MATRIX CONSTRAINTS
+    # ======================================================
 
-    if row_index is None:
-        row_index = range(A.shape[0])
-    if col_index is None:
-        col_index = range(A.shape[1])
+    def add_matrix_constraints(
+    self,
+    A,
+    varname,
+    b,
+    sense="==",
+    name="matrix_con",
+    row_index=None
+    ):
 
-    x = getattr(self, varname)
+        import numpy as np
 
-    def rule(m, i):
-        lhs = sum(A[i, j] * x[j] for j in col_index)
-        if sense == "<=":
-            return lhs <= b[i]
-        elif sense == ">=":
-            return lhs >= b[i]
-        elif sense == "==":
-            return lhs == b[i]
+        if varname not in self._vars:
+            raise ValueError(f"Variable '{varname}' not defined.")
+
+        x = self._vars[varname]
+
+        # --------------------------------------------
+        # DENSE CASE
+        # --------------------------------------------
+        if isinstance(A, np.ndarray):
+
+            m_rows, n_cols = A.shape
+            b = np.array(b).flatten()
+
+            if len(b) != m_rows:
+                raise ValueError("Dimension mismatch between A and b")
+
+            # ----------------------------------------
+            # GET VARIABLE INDEX SET (CRITICAL FIX)
+            # ----------------------------------------
+            var_index_set = list(x.index_set())
+
+            if len(var_index_set) != n_cols:
+                raise ValueError(
+                    "Number of columns in A must match size of variable index set"
+                )
+
+            # ----------------------------------------
+            # ROW SET
+            # ----------------------------------------
+            if row_index is None:
+                row_index = f"{name}_rows"
+                self.add_set(row_index, range(m_rows))
+
+            rowset = list(self._sets[row_index])
+
+            if len(rowset) != m_rows:
+                raise ValueError("Row index set size must match number of rows in A")
+
+            # ----------------------------------------
+            # RULE
+            # ----------------------------------------
+            def rule(model, i):
+
+                i0 = rowset.index(i)
+
+                expr = sum(
+                    A[i0, j] * x[var_index_set[j]]
+                    for j in range(n_cols)
+                )
+
+                if sense == "==":
+                    return expr == b[i0]
+                elif sense == "<=":
+                    return expr <= b[i0]
+                elif sense == ">=":
+                    return expr >= b[i0]
+                else:
+                    raise ValueError("sense must be '==', '<=', '>='")
+
+            self.add_constraint(name, rule, index=row_index)
+
+        # --------------------------------------------
+        # SPARSE CASE
+        # --------------------------------------------
+        elif isinstance(A, dict):
+
+            rows = sorted({i for (i, j) in A})
+
+            if row_index is None:
+                row_index = f"{name}_rows"
+                self.add_set(row_index, rows)
+
+            row_cols = {i: [] for i in rows}
+            for (i, j) in A:
+                row_cols[i].append(j)
+
+            if isinstance(b, dict):
+                b_dict = b
+            else:
+                b_dict = {i: b[k] for k, i in enumerate(rows)}
+
+            def rule(model, i):
+
+                expr = sum(A[i, j] * x[j] for j in row_cols[i])
+
+                if sense == "==":
+                    return expr == b_dict[i]
+                elif sense == "<=":
+                    return expr <= b_dict[i]
+                elif sense == ">=":
+                    return expr >= b_dict[i]
+                else:
+                    raise ValueError("sense must be '==', '<=', '>='")
+
+            self.add_constraint(name, rule, index=row_index)
+
         else:
-            raise ValueError("Unknown sense")
-
-    self.add_constraint(name, rule, index=row_index)    
-
+            raise TypeError("A must be dict or numpy.ndarray")
 
     # ======================================================
     # OBJECTIVE
@@ -333,3 +426,29 @@ class Model:
             return getattr(self._model, name)
 
         raise AttributeError(name)
+
+    # ======================================================
+    # MODEL INTROSPECTION
+    # ======================================================
+
+    def constraints_list(self):
+        """
+        Return a list of all constraints as strings.
+        Each indexed constraint is expanded.
+        """
+        result = []
+
+        for c in self._model.component_objects(pyo.Constraint, active=True):
+            for idx in c:
+                expr = c[idx].expr
+                result.append(str(expr))
+
+        return result
+
+    def objective_expression(self):
+        """
+        Return the objective function as a string.
+        Assumes a single active objective.
+        """
+        obj = next(self._model.component_data_objects(pyo.Objective, active=True))
+        return str(obj.expr)
