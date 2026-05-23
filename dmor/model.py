@@ -297,8 +297,8 @@ class Model:
         if tee: 
             self._model_stats()
         
-        if not hasattr(self._model, "dual"):
-            self._model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
+        #if not hasattr(self._model, "dual"):
+        #    self._model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
 
         opt = pyo.SolverFactory(solver)
 
@@ -365,6 +365,10 @@ class Model:
 
     def shadow_prices(self):
 
+        if not hasattr(self._model, "dual"):
+        print("Dual information not available.")
+        return
+    
         print("\nShadow Prices")
         print("-" * 30)
 
