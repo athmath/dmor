@@ -366,8 +366,8 @@ class Model:
     def shadow_prices(self):
 
         if not hasattr(self._model, "dual"):
-        print("Dual information not available.")
-        return
+            print("Dual information not available.")
+            return
     
         print("\nShadow Prices")
         print("-" * 30)
