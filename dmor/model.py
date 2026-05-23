@@ -482,3 +482,28 @@ class Model:
         keys_sorted = sorted(keys)
 
         return np.array([pyo.value(var[k]) for k in keys_sorted])
+    
+    # ======================================================
+    # EXTRACTING SOLUTION VALUES INDEXED
+    # ======================================================
+
+    def get_values_map(self, name):
+        """
+        Return variable values preserving original indices.
+
+        Scalar variables:
+            float
+
+        Indexed variables:
+            dict[index -> value]
+        """
+
+        var = getattr(self._model, name)
+
+        if not var.is_indexed():
+            return pyo.value(var)
+
+        return {
+            k: pyo.value(var[k])
+            for k in var.keys()
+        }
