@@ -302,11 +302,13 @@ class Model:
 
         opt = pyo.SolverFactory(solver)
 
-        if not opt.available():
+        avail = opt.available()
+
+        if avail is False:
             raise RuntimeError(
                 f"Solver '{solver}' is not available. Check that highspy is installed."
             )
-
+       
         results = opt.solve(self._model, tee=tee)
 
         status = results.solver.status
